@@ -1,36 +1,32 @@
-import { ethers } from 'ethers';
-import { chains } from '../../config/chains.js';
+// src/utils/WalletManager.js
+import fs from 'fs';
+import path from 'path';
 
 class WalletManager {
-  constructor(chain) {
-    this.chain = chain;
-    this.provider = null;
-    this.wallet = null;
-  }
+  // ... (kode sebelumnya tetap)
 
-  async initializeWallet(privateKey) {
+  async initializeWalletsFromFile() {
     try {
-      this.provider = new ethers.JsonRpcProvider(this.chain.rpcUrl);
-      this.wallet = new ethers.Wallet(privateKey, this.provider);
-      const balance = await this.provider.getBalance(this.wallet.address);
-      console.log(`\n🔗 Connected to ${this.chain.name}`);
-      console.log(`📍 Wallet Address: ${this.wallet.address}`);
-      console.log(`💰 Balance: ${ethers.formatEther(balance)} ${this.chain.symbol}\n`);
+      const pkPath = path.resolve('./data/PK.txt');
+      if (!fs.existsSync(pkPath)) {
+        throw new Error('File PK.txt tidak ditemukan');
+      }
 
-      return this.wallet;
+      const privateKeys = fs.readFileSync(pkPath, 'utf8')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && line.length > 0);
+
+      if (privateKeys.length === 0) {
+        throw new Error('Tidak ada private key yang valid di PK.txt');
+      }
+
+      this.wallets = privateKeys.map(pk => new ethers.Wallet(pk, this.provider));
+      console.log(`\n🔑 Loaded ${this.wallets.length} wallets from PK.txt`);
+      return this.wallets;
     } catch (error) {
-      console.error('Failed to initialize wallet:', error.message);
+      console.error('Failed to load wallets:', error.message);
       throw error;
     }
   }
-
-  getProvider() {
-    return this.provider;
-  }
-
-  getWallet() {
-    return this.wallet;
-  }
 }
-
-export default WalletManager;
