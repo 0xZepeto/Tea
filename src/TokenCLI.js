@@ -60,18 +60,18 @@ class TokenCLI {
       .split('\n')
       .map(line => line.trim())
       .filter(line => line && line.length > 0);
-    if (privateKeys.length === 0)A {
+    if (privateKeys.length === 0) {
       throw new Error('Tidak ada private key yang valid di PK.txt');
     }
     return privateKeys;
   }
 
   async getContractAddress() {
-    const contractPath = './data/contract.txt';
-    if (!fs.existsSync(contractPath)) {
+    const pkPath = './data/contract.txt';
+    if (!fs.existsSync(pkPath)) {
       throw new Error('File contract.txt tidak ditemukan di folder data');
     }
-    const contractAddress = fs.readFileSync(contractPath, 'utf8').trim();
+    const contractAddress = fs.readFileSync(pkPath, 'utf8').trim();
     if (!contractAddress || !ethers.isAddress(contractAddress)) {
       throw new Error('Contract address tidak valid di contract.txt');
     }
