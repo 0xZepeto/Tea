@@ -66,16 +66,24 @@ class TokenCLI {
     return privateKeys;
   }
 
-  async getContractAddress() {
-    const pkPath = './data/contract.txt';
-    if (!fs.existsSync(pkPath)) {
+  async getContractAddresses() {
+    const contractPath = './data/contract.txt';
+    if (!fs.existsSync(contractPath)) {
       throw new Error('File contract.txt tidak ditemukan di folder data');
     }
-    const contractAddress = fs.readFileSync(pkPath, 'utf8').trim();
-    if (!contractAddress || !ethers.isAddress(contractAddress)) {
-      throw new Error('Contract address tidak valid di contract.txt');
+    const contractAddresses = fs.readFileSync(contractPath, 'utf8')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && line.length > 0);
+    if (contractAddresses.length === 0) {
+      throw new Error('Tidak ada contract address yang valid di contract.txt');
     }
-    return contractAddress;
+    for (const addr of contractAddresses) {
+      if (!ethers.isAddress(addr)) {
+        throw new Error(`Contract address tidak valid: ${addr}`);
+      }
+    }
+    return contractAddresses;
   }
 
   async getWalletAddresses() {
@@ -106,6 +114,12 @@ class TokenCLI {
     return addresses[randomIndex];
   }
 
+  // Fungsi untuk memilih contract address acak dari contract.txt
+  getRandomContractAddress(contractAddresses) {
+    const randomIndex = Math.floor(Math.random() * contractAddresses.length);
+    return contractAddresses[randomIndex];
+  }
+
   async run() {
     try {
       await this.initialize();
@@ -115,9 +129,9 @@ class TokenCLI {
       const privateKeys = await this.getPrivateKeys();
       console.log(`\n🔑 Ditemukan ${privateKeys.length} private key di PK.txt`);
 
-      // Ambil contract address dari contract.txt
-      const contractAddress = await this.getContractAddress();
-      console.log(`\n📜 Menggunakan contract address: ${contractAddress}`);
+      // Ambil semua contract address dari contract.txt
+      const contractAddresses = await this.getContractAddresses();
+      console.log(`\n📜 Ditemukan ${contractAddresses.length} contract address di contract.txt`);
 
       // Ambil semua alamat dari wallet.txt
       const walletAddresses = await this.getWalletAddresses();
@@ -134,13 +148,14 @@ class TokenCLI {
         // Inisialisasi TokenTransferService
         const tokenTransferService = new TokenTransferService(walletManager);
 
-        // Lakukan 101 transaksi untuk akun ini dengan jumlah token dan tujuan acak
+        // Lakukan 101 transaksi untuk akun ini dengan jumlah token, tujuan, dan kontrak acak
         for (let i = 0; i < 101; i++) {
           const amount = this.getRandomAmount(); // Jumlah token acak
           const toAddress = this.getRandomAddress(walletAddresses); // Alamat tujuan acak dari wallet.txt
-          console.log(`\n📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token ke ${toAddress}`);
+          const contractAddress = this.getRandomContractAddress(contractAddresses); // Contract address acak dari contract.txt
+          console.log(`\n📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token dari kontrak ${contractAddress} ke ${toAddress}`);
           await tokenTransferService.transferToken(
-            contractAddress,
+            contractAddress, // Gunakan contract address acak
             toAddress, // Kirim ke alamat acak dari wallet.txt
             amount
           );
