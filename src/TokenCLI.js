@@ -59,7 +59,8 @@ class TokenCLI {
     const privateKeys = fs.readFileSync(pkPath, 'utf8')
       .split('\n')
       .map(line => line.trim())
-      .filter(line => line && line.length > 0);
+      .filter(line => line && line.length > 0)
+      .map(pk => pk.startsWith('0x') ? pk.slice(2) : pk); // Hapus '0x' jika ada
     if (privateKeys.length === 0) {
       throw new Error('Tidak ada private key yang valid di PK.txt');
     }
@@ -101,6 +102,16 @@ class TokenCLI {
     return addresses;
   }
 
+  async getTokenDetails() {
+    const name = await this.question('\nMasukkan nama token: ');
+    const symbol = await this.question('Masukkan simbol token: ');
+    const supply = await this.question('Masukkan jumlah supply awal: ');
+    if (!name || !symbol || !supply || isNaN(supply) || parseFloat(supply) <= 0) {
+      throw new Error('Detail token tidak valid');
+    }
+    return { name, symbol, supply: parseFloat(supply) };
+  }
+
   // Fungsi untuk menghasilkan jumlah token acak antara 1 juta dan 100 juta
   getRandomAmount() {
     const min = 1000000; // 1 juta
@@ -120,6 +131,40 @@ class TokenCLI {
     return contractAddresses[randomIndex];
   }
 
+  async selectOperation() {
+    console.log('\n📝 Pilih operasi yang akan dilakukan:');
+    console.log('1. Deploy token baru');
+    console.log('2. Transfer token dari daftar kontrak (paralel)');
+    const answer = await this.question('\nPilih operasi (1-2): ');
+    const selection = parseInt(answer);
+    if (selection >= 1 && selection <= 2) {
+      return selection;
+    } else {
+      throw new Error('Pilihan operasi tidak valid');
+    }
+  }
+
+  // Fungsi untuk memproses satu akun
+  async processAccount(index, privateKey, chain, contractAddresses, walletAddresses) {
+    try {
+      console.log(`\n🔄 Memulai akun #${index + 1}...`);
+      const walletManager = new WalletManager(chain);
+      await walletManager.initializeWallet('0x' + privateKey);
+      const tokenTransferService = new TokenTransferService(walletManager);
+
+      for (let i = 0; i < 101; i++) {
+        const amount = this.getRandomAmount();
+        const toAddress = this.getRandomAddress(walletAddresses);
+        const contractAddress = this.getRandomContractAddress(contractAddresses);
+        console.log(`📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token dari kontrak ${contractAddress} ke ${toAddress}`);
+        await tokenTransferService.transferToken(contractAddress, toAddress, amount);
+      }
+      console.log(`✅ Akun #${index + 1} selesai`);
+    } catch (error) {
+      console.error(`Error pada akun #${index + 1}: ${error.message}`);
+    }
+  }
+
   async run() {
     try {
       await this.initialize();
@@ -129,41 +174,36 @@ class TokenCLI {
       const privateKeys = await this.getPrivateKeys();
       console.log(`\n🔑 Ditemukan ${privateKeys.length} private key di PK.txt`);
 
-      // Ambil semua contract address dari contract.txt
-      const contractAddresses = await this.getContractAddresses();
-      console.log(`\n📜 Ditemukan ${contractAddresses.length} contract address di contract.txt`);
+      // Pilih operasi
+      const operation = await this.selectOperation();
 
-      // Ambil semua alamat dari wallet.txt
-      const walletAddresses = await this.getWalletAddresses();
-      console.log(`\n📍 Ditemukan ${walletAddresses.length} alamat tujuan di wallet.txt`);
-
-      // Proses setiap private key secara berurutan
-      for (const [index, privateKey] of privateKeys.entries()) {
-        console.log(`\n🔄 Memproses akun #${index + 1}...`);
-
-        // Inisialisasi wallet untuk private key saat ini
+      if (operation === 1) {
+        // Deploy token baru
+        const tokenDetails = await this.getTokenDetails();
         const walletManager = new WalletManager(chain);
-        await walletManager.initializeWallet(privateKey);
+        const privateKey = privateKeys[0];
+        await walletManager.initializeWallet('0x' + privateKey);
+        const tokenDeployService = new TokenDeployService(walletManager);
+        await tokenDeployService.deployToken(
+          tokenDetails.name,
+          tokenDetails.symbol,
+          tokenDetails.supply
+        );
+      } else if (operation === 2) {
+        // Transfer token dari daftar kontrak secara paralel
+        const contractAddresses = await this.getContractAddresses();
+        console.log(`\n📜 Ditemukan ${contractAddresses.length} contract address di contract.txt`);
+        const walletAddresses = await this.getWalletAddresses();
+        console.log(`\n📍 Ditemukan ${walletAddresses.length} alamat tujuan di wallet.txt`);
 
-        // Inisialisasi TokenTransferService
-        const tokenTransferService = new TokenTransferService(walletManager);
-
-        // Lakukan 101 transaksi untuk akun ini dengan jumlah token, tujuan, dan kontrak acak
-        for (let i = 0; i < 101; i++) {
-          const amount = this.getRandomAmount(); // Jumlah token acak
-          const toAddress = this.getRandomAddress(walletAddresses); // Alamat tujuan acak dari wallet.txt
-          const contractAddress = this.getRandomContractAddress(contractAddresses); // Contract address acak dari contract.txt
-          console.log(`\n📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token dari kontrak ${contractAddress} ke ${toAddress}`);
-          await tokenTransferService.transferToken(
-            contractAddress, // Gunakan contract address acak
-            toAddress, // Kirim ke alamat acak dari wallet.txt
-            amount
-          );
-        }
-        console.log(`✅ Selesai memproses 101 transaksi untuk akun #${index + 1}`);
+        // Jalankan semua akun secara paralel
+        const accountPromises = privateKeys.map((privateKey, index) =>
+          this.processAccount(index, privateKey, chain, contractAddresses, walletAddresses)
+        );
+        await Promise.all(accountPromises);
       }
 
-      console.log('\n🎉 Semua akun telah diproses!');
+      console.log('\n🎉 Operasi selesai!');
       this.rl.close();
     } catch (error) {
       console.error('Error:', error.message);
