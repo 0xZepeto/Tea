@@ -122,6 +122,7 @@ class TokenCLI {
       const walletManager = new WalletManager(chain);
       
       // Initialize all wallets from PK.txt
+      console.log('\n🔍 Loading wallets from PK.txt...');
       await walletManager.initializeWallets();
 
       const operation = await this.selectOperation();
