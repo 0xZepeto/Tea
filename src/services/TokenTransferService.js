@@ -18,11 +18,11 @@ class TokenTransferService {
       );
 
       const decimals = await contract.decimals();
-      const amountWithDecimals = ethers.parseUnits(amount.toString(), decimals);
+      const amountWithDecimals = ethers.utils.parseUnits(amount.toString(), decimals);
 
       const balance = await contract.balanceOf(this.walletManager.wallet.address);
-      if (balance < amountWithDecimals) {
-        throw new Error(`Saldo token tidak mencukupi. Saldo saat ini: ${ethers.formatUnits(balance, decimals)}`);
+      if (balance.lt(amountWithDecimals)) {
+        throw new Error(`Saldo token tidak mencukupi. Saldo saat ini: ${ethers.utils.formatUnits(balance, decimals)}`);
       }
 
       const tx = await contract.transfer(toAddress, amountWithDecimals);
@@ -50,15 +50,15 @@ class TokenTransferService {
       );
 
       const decimals = await contract.decimals();
-      const amountWithDecimals = ethers.parseUnits(amount.toString(), decimals);
+      const amountWithDecimals = ethers.utils.parseUnits(amount.toString(), decimals);
 
       const balance = await contract.balanceOf(this.walletManager.wallet.address);
-      if (balance < amountWithDecimals * addresses.length) {
+      if (balance.lt(amountWithDecimals.mul(addresses.length))) {
         throw new Error(`Saldo token tidak mencukupi untuk transfer ke ${addresses.length} alamat.`);
       }
 
       for (const address of addresses) {
-        if (!ethers.isAddress(address)) {
+        if (!ethers.utils.isAddress(address)) {
           console.log(`⚠️ Melewati alamat tidak valid: ${address}`);
           continue;
         }
@@ -97,7 +97,7 @@ class TokenTransferService {
       console.log(`\n🚀 Memulai transfer token ke ${addresses.length} alamat dari wallet.txt...\n`);
 
       for (const address of addresses) {
-        if (!ethers.isAddress(address)) {
+        if (!ethers.utils.isAddress(address)) {
           console.log(`⚠️ Melewati alamat tidak valid: ${address}`);
           continue;
         }
