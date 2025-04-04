@@ -56,64 +56,37 @@ class TokenCLI {
     }
   }
 
-  async getTokenDetails() {
-    const name = await this.question('\nEnter token name: ');
-    const symbol = await this.question('Enter token symbol: ');
-    const supply = await this.question('Enter initial supply: ');
-
-    if (!name || !symbol || !supply || isNaN(supply) || parseFloat(supply) <= 0) {
-      throw new Error('Invalid token details');
+  async readContractList() {
+    const filePath = path.join(process.cwd(), 'data', 'contract.txt');
+    if (!fs.existsSync(filePath)) {
+      throw new Error('❌ contract.txt not found in /data folder');
     }
 
-    return { name, symbol, supply: parseFloat(supply) };
+    const content = fs.readFileSync(filePath, 'utf8');
+    const contracts = content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => /^0x[a-fA-F0-9]{40}$/.test(line));
+
+    if (contracts.length === 0) {
+      throw new Error('❌ No valid contract addresses found in contract.txt');
+    }
+
+    return contracts;
   }
 
-  async selectOperation() {
-    console.log('\n📝 Select operation:');
-    console.log('1. Deploy new token');
-    console.log('2. Batch transfer to multiple addresses');
-    console.log('3. Create new wallets and transfer tokens');
+  async getTransferDetails(defaultTx = 101) {
+    const amount = await this.question('\nEnter amount to transfer per transaction: ');
+    const txPerWallet = await this.question(`Enter transactions per wallet (default ${defaultTx}): `) || defaultTx;
 
-    const answer = await this.question('\nSelect operation (1-3): ');
-    const selection = parseInt(answer);
-
-    if (selection >= 1 && selection <= 3) {
-      return selection;
-    } else {
-      throw new Error('Invalid operation selection');
-    }
-  }
-
-  async getTransferDetails() {
-    const contractAddress = await this.question('\nEnter token contract address: ');
-    const amount = await this.question('Enter amount to transfer per transaction: ');
-    const txPerWallet = await this.question('Enter transactions per wallet (default 120): ') || 120;
-
-    if (!contractAddress || !amount || isNaN(amount) || parseFloat(amount) <= 0) {
-      throw new Error('Invalid transfer details');
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+      throw new Error('Invalid transfer amount');
     }
 
-    return { 
-      contractAddress, 
+    return {
       amount: parseFloat(amount),
       txPerWallet: parseInt(txPerWallet)
     };
-  }
-
-  async getNumberOfWallets() {
-    const answer = await this.question('\nEnter number of new wallets to create: ');
-    const number = parseInt(answer);
-
-    if (isNaN(number) || number <= 0) {
-      throw new Error('Invalid number of wallets');
-    }
-
-    return number;
-  }
-
-  async confirmAction(message) {
-    const answer = await this.question(`\n${message} (y/n): `);
-    return answer.toLowerCase() === 'y';
   }
 
   async run() {
@@ -121,18 +94,17 @@ class TokenCLI {
       await this.initialize();
       const chain = await this.selectChain();
       const walletManager = new WalletManager(chain);
-      
-      // Initialize wallets from PK.txt
+
       console.log('\n🔍 Loading wallets from PK.txt...');
       await walletManager.initializeWallets();
+      const wallets = walletManager.getWallets();
 
       const operation = await this.selectOperation();
 
       if (operation === 1) {
-        // Token deployment
         const tokenDetails = await this.getTokenDetails();
         const confirm = await this.confirmAction(`Deploy new token ${tokenDetails.symbol} with supply ${tokenDetails.supply}?`);
-        
+
         if (confirm) {
           const tokenDeployService = new TokenDeployService(walletManager);
           await tokenDeployService.deployToken(
@@ -143,43 +115,36 @@ class TokenCLI {
         } else {
           console.log('\n🚫 Deployment cancelled');
         }
+
       } else {
-        // Transfer operations
+        const contractList = await this.readContractList();
+
+        if (contractList.length !== wallets.length) {
+          throw new Error(`❌ Wallet count (${wallets.length}) and contract count (${contractList.length}) mismatch`);
+        }
+
         const transferDetails = await this.getTransferDetails();
-        
-        if (operation === 2) {
-          // Batch transfer
-          const confirm = await this.confirmAction(
-            `Process ${transferDetails.txPerWallet} transactions per wallet to addresses in wallet.txt?`
-          );
-          
-          if (confirm) {
-            const batchService = new BatchTransferService(walletManager);
-            await batchService.processBatch(
-              transferDetails.contractAddress,
+
+        const confirm = await this.confirmAction(
+          `Transfer ${transferDetails.txPerWallet} txs per wallet (${wallets.length} wallets)?`
+        );
+
+        if (confirm) {
+          const batchService = new BatchTransferService(walletManager);
+          for (let i = 0; i < wallets.length; i++) {
+            const contractAddress = contractList[i];
+            const wallet = wallets[i];
+
+            console.log(`\n➡️ Wallet ${i + 1} sending to contract ${contractAddress}`);
+            await batchService.transferWithCustomWallet(
+              wallet,
+              contractAddress,
               transferDetails.amount,
               transferDetails.txPerWallet
             );
-          } else {
-            console.log('\n🚫 Batch transfer cancelled');
           }
         } else {
-          // Create and fund new wallets
-          const numberOfWallets = await this.getNumberOfWallets();
-          const confirm = await this.confirmAction(
-            `Create ${numberOfWallets} new wallets and transfer ${transferDetails.amount} tokens to each?`
-          );
-          
-          if (confirm) {
-            const tokenTransferService = new TokenTransferService(walletManager);
-            await tokenTransferService.transferToNewWallets(
-              transferDetails.contractAddress,
-              numberOfWallets,
-              transferDetails.amount
-            );
-          } else {
-            console.log('\n🚫 Wallet creation cancelled');
-          }
+          console.log('\n🚫 Operation cancelled');
         }
       }
 
