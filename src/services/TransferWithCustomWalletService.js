@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { JsonRpcProvider, Contract, parseUnits } from 'ethers';
 import fs from 'fs';
 
 const ERC20_ABI = [
@@ -11,15 +11,15 @@ class TransferWithCustomWalletService {
   }
 
   async run(chain, amountPerTx, txCountPerWallet = 101) {
-    const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
+    const provider = new JsonRpcProvider(chain.rpc);
 
     const mainWallets = this.walletManager.wallets;
-    const recipientAddresses = fs.readFileSync('wallet.txt', 'utf-8')
+    const recipientAddresses = fs.readFileSync('./data/wallet.txt', 'utf-8')
       .split('\n')
       .map(addr => addr.trim())
       .filter(Boolean);
 
-    const contractAddresses = fs.readFileSync('contract.txt', 'utf-8')
+    const contractAddresses = fs.readFileSync('./data/contract.txt', 'utf-8')
       .split('\n')
       .map(addr => addr.trim())
       .filter(Boolean);
@@ -36,16 +36,16 @@ class TransferWithCustomWalletService {
         continue;
       }
 
-      const token = new ethers.Contract(contractAddress, ERC20_ABI, wallet);
+      const token = new Contract(contractAddress, ERC20_ABI, wallet);
 
       console.log(`\n➡️ Wallet #${i + 1} memulai transfer token dari ${contractAddress}`);
 
       for (const recipient of recipientAddresses) {
         for (let tx = 0; tx < txCountPerWallet; tx++) {
           try {
-            const txHash = await token.transfer(recipient, ethers.utils.parseUnits(amountPerTx.toString(), 18));
-            console.log(`✅ TX ${tx + 1} to ${recipient}: ${txHash.hash}`);
-            await txHash.wait();
+            const txRes = await token.transfer(recipient, parseUnits(amountPerTx.toString(), 18));
+            console.log(`✅ TX ${tx + 1} to ${recipient}: ${txRes.hash}`);
+            await txRes.wait();
           } catch (err) {
             console.log(`❌ Gagal TX ${tx + 1} to ${recipient}: ${err.message}`);
             break;
@@ -59,4 +59,3 @@ class TransferWithCustomWalletService {
 }
 
 export default TransferWithCustomWalletService;
-              
