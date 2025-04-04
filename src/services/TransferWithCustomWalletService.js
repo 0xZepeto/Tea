@@ -11,7 +11,16 @@ class TransferWithCustomWalletService {
   }
 
   async run(chain, amountPerTx, txCountPerWallet = 101) {
-    const provider = new JsonRpcProvider(chain.rpc);
+    console.log(`\n🌐 Menggunakan RPC: ${chain.rpc}`);
+    
+    let provider;
+    try {
+      provider = new JsonRpcProvider(chain.rpc);
+      await provider.getBlockNumber(); // Cek apakah RPC valid
+    } catch (error) {
+      console.error("❌ RPC Error:", error.message);
+      process.exit(1);
+    }
 
     const mainWallets = this.walletManager.wallets;
     const recipientAddresses = fs.readFileSync('./data/wallet.txt', 'utf-8')
@@ -23,6 +32,10 @@ class TransferWithCustomWalletService {
       .split('\n')
       .map(addr => addr.trim())
       .filter(Boolean);
+
+    if (contractAddresses.length < mainWallets.length) {
+      console.warn(`⚠️ Jumlah kontrak (${contractAddresses.length}) lebih sedikit dari jumlah dompet (${mainWallets.length}).`);
+    }
 
     console.log(`\n🧾 Total contract loaded: ${contractAddresses.length}`);
     console.log(`📥 Total recipient loaded: ${recipientAddresses.length}`);
@@ -41,15 +54,21 @@ class TransferWithCustomWalletService {
       console.log(`\n➡️ Wallet #${i + 1} memulai transfer token dari ${contractAddress}`);
 
       for (const recipient of recipientAddresses) {
-        for (let tx = 0; tx < txCountPerWallet; tx++) {
-          try {
-            const txRes = await token.transfer(recipient, parseUnits(amountPerTx.toString(), 18));
-            console.log(`✅ TX ${tx + 1} to ${recipient}: ${txRes.hash}`);
-            await txRes.wait();
-          } catch (err) {
-            console.log(`❌ Gagal TX ${tx + 1} to ${recipient}: ${err.message}`);
-            break;
-          }
+        try {
+          // Kirim transaksi secara paralel hingga txCountPerWallet
+          const txPromises = Array.from({ length: txCountPerWallet }, async (_, txIndex) => {
+            try {
+              const txRes = await token.transfer(recipient, parseUnits(amountPerTx.toString(), 18));
+              console.log(`✅ TX ${txIndex + 1} to ${recipient}: ${txRes.hash}`);
+              await txRes.wait();
+            } catch (err) {
+              console.log(`❌ Gagal TX ${txIndex + 1} to ${recipient}: ${err.message}`);
+            }
+          });
+
+          await Promise.all(txPromises);
+        } catch (err) {
+          console.error(`❌ Kesalahan umum saat transfer ke ${recipient}:`, err.message);
         }
       }
     }
