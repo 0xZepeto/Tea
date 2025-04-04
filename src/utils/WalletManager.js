@@ -27,20 +27,22 @@ class WalletManager {
 
       // Read and validate private keys
       const fileContent = fs.readFileSync(pkPath, 'utf8');
-      const privateKeys = fileContent
+      const rawKeys = fileContent
         .split('\n')
         .map(line => line.trim())
-        .filter(line => {
-          // Validate 64-character hex private key
-          const isValid = /^[0-9a-fA-F]{64}$/.test(line);
-          if (!isValid && line.length > 0) {
-            console.warn(`⚠️ Invalid private key format (skipping): ${line.substring(0, 6)}...`);
-          }
-          return isValid;
-        });
+        .filter(line => line.length > 0);
+
+      const privateKeys = rawKeys.filter(line => {
+        const cleaned = line.startsWith('0x') ? line.slice(2) : line;
+        const isValid = /^[0-9a-fA-F]{64}$/.test(cleaned);
+        if (!isValid) {
+          console.warn(`⚠️ Invalid private key format (skipping): ${line.substring(0, 10)}...`);
+        }
+        return isValid;
+      });
 
       if (privateKeys.length === 0) {
-        throw new Error('No valid private keys found in PK.txt\nEnsure each key is 64-character hex without 0x prefix');
+        throw new Error('No valid private keys found in PK.txt');
       }
 
       console.log(`🔑 Found ${privateKeys.length} valid private key(s)`);
@@ -48,7 +50,8 @@ class WalletManager {
       // Initialize wallets and check balances
       this.wallets = await Promise.all(
         privateKeys.map(async (pk, index) => {
-          const wallet = new ethers.Wallet(pk, this.provider);
+          const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`;
+          const wallet = new ethers.Wallet(normalizedPk, this.provider);
           const balance = await this.provider.getBalance(wallet.address);
           
           console.log(`\nWallet ${index + 1}:`);
