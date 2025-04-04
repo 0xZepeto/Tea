@@ -1,3 +1,4 @@
+// src/TokenCLI.js
 import readline from 'readline';
 import displayHeader from './utils/displayHeader.js';
 import { chains } from '../config/chains.js';
@@ -121,14 +122,14 @@ class TokenCLI {
       const chain = await this.selectChain();
       const walletManager = new WalletManager(chain);
       
-      // Initialize all wallets from PK.txt
+      // Initialize wallets from PK.txt
       console.log('\n🔍 Loading wallets from PK.txt...');
       await walletManager.initializeWallets();
 
       const operation = await this.selectOperation();
 
       if (operation === 1) {
-        // Deploy new token
+        // Token deployment
         const tokenDetails = await this.getTokenDetails();
         const confirm = await this.confirmAction(`Deploy new token ${tokenDetails.symbol} with supply ${tokenDetails.supply}?`);
         
@@ -143,11 +144,11 @@ class TokenCLI {
           console.log('\n🚫 Deployment cancelled');
         }
       } else {
-        // Get transfer details
+        // Transfer operations
         const transferDetails = await this.getTransferDetails();
         
         if (operation === 2) {
-          // Batch transfer operation
+          // Batch transfer
           const confirm = await this.confirmAction(
             `Process ${transferDetails.txPerWallet} transactions per wallet to addresses in wallet.txt?`
           );
@@ -163,7 +164,7 @@ class TokenCLI {
             console.log('\n🚫 Batch transfer cancelled');
           }
         } else {
-          // Create new wallets and transfer
+          // Create and fund new wallets
           const numberOfWallets = await this.getNumberOfWallets();
           const confirm = await this.confirmAction(
             `Create ${numberOfWallets} new wallets and transfer ${transferDetails.amount} tokens to each?`
