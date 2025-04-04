@@ -1,1 +1,10 @@
-
+{
+  "deployment": {
+    "gasLimit": "3000000",
+    "gasPrice": "5"
+  },
+  "transfer": {
+    "gasLimit": "100000",
+    "gasPrice": "5"
+  }
+}
