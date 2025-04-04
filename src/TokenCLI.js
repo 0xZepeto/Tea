@@ -13,6 +13,7 @@ class TokenCLI {
       input: process.stdin,
       output: process.stdout
     });
+    this.chain = null;
   }
 
   async initialize() {
@@ -118,8 +119,8 @@ class TokenCLI {
   async run() {
     try {
       await this.initialize();
-      const chain = await this.selectChain();
-      const walletManager = new WalletManager(chain);
+      this.chain = await this.selectChain();
+      const walletManager = new WalletManager(this.chain);
 
       console.log('\n🔍 Loading wallets from PK.txt...');
       await walletManager.initializeWallets();
@@ -172,7 +173,8 @@ class TokenCLI {
       } else if (operation === 4) {
         const amount = await this.question('\nMasukkan jumlah token per TX: ');
         const transferService = new TransferWithCustomWalletService(walletManager);
-        await transferService.run(chain, parseFloat(amount));
+        console.log('RPC yang digunakan:', this.chain.rpc);
+        await transferService.run(this.chain, parseFloat(amount));
       }
 
       this.rl.close();
@@ -185,4 +187,4 @@ class TokenCLI {
 }
 
 export default TokenCLI;
-          
+                                                                                                        
