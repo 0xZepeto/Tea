@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import fs from 'fs';
+import path from 'path';
 
 class TokenTransferService {
   constructor(walletManager) {
@@ -18,11 +19,11 @@ class TokenTransferService {
       );
 
       const decimals = await contract.decimals();
-      const amountWithDecimals = ethers.utils.parseUnits(amount.toString(), decimals);
+      const amountWithDecimals = ethers.parseUnits(amount.toString(), decimals);
 
       const balance = await contract.balanceOf(this.walletManager.wallet.address);
-      if (balance.lt(amountWithDecimals)) {
-        throw new Error(`Saldo token tidak mencukupi. Saldo saat ini: ${ethers.utils.formatUnits(balance, decimals)}`);
+      if (balance < amountWithDecimals) {
+        throw new Error(`Saldo token tidak mencukupi. Saldo saat ini: ${ethers.formatUnits(balance, decimals)}`);
       }
 
       const tx = await contract.transfer(toAddress, amountWithDecimals);
@@ -34,46 +35,6 @@ class TokenTransferService {
       return receipt;
     } catch (error) {
       console.error(`Error transfer token: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async transferMultipleTokens(contractAddress, addresses, amount) {
-    try {
-      const artifactPath = './artifacts/contracts/Token.sol/Token.json';
-      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-
-      const contract = new ethers.Contract(
-        contractAddress,
-        artifact.abi,
-        this.walletManager.wallet
-      );
-
-      const decimals = await contract.decimals();
-      const amountWithDecimals = ethers.utils.parseUnits(amount.toString(), decimals);
-
-      const balance = await contract.balanceOf(this.walletManager.wallet.address);
-      if (balance.lt(amountWithDecimals.mul(addresses.length))) {
-        throw new Error(`Saldo token tidak mencukupi untuk transfer ke ${addresses.length} alamat.`);
-      }
-
-      for (const address of addresses) {
-        if (!ethers.utils.isAddress(address)) {
-          console.log(`⚠️ Melewati alamat tidak valid: ${address}`);
-          continue;
-        }
-
-        const tx = await contract.transfer(address, amountWithDecimals);
-        console.log(`📤 Transaksi transfer token terkirim ke ${address}: ${tx.hash}`);
-        console.log(`🔍 Explorer: ${this.walletManager.chain.explorer}/tx/${tx.hash}`);
-
-        const receipt = await tx.wait();
-        console.log(`✅ Transfer token berhasil dikonfirmasi di block ${receipt.blockNumber}`);
-      }
-
-      console.log('🎉 Semua transfer selesai!');
-    } catch (error) {
-      console.error(`Error transfer multiple tokens: ${error.message}`);
       throw error;
     }
   }
@@ -97,7 +58,7 @@ class TokenTransferService {
       console.log(`\n🚀 Memulai transfer token ke ${addresses.length} alamat dari wallet.txt...\n`);
 
       for (const address of addresses) {
-        if (!ethers.utils.isAddress(address)) {
+        if (!ethers.isAddress(address)) {
           console.log(`⚠️ Melewati alamat tidak valid: ${address}`);
           continue;
         }
