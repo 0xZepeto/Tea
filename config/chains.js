@@ -1,4 +1,3 @@
-config/chains.js
 export const chains = [
   {
     name: "Tea Sepolia",
