@@ -60,7 +60,7 @@ class TokenCLI {
       .split('\n')
       .map(line => line.trim())
       .filter(line => line && line.length > 0)
-      .map(pk => pk.startsWith('0x') ? pk.slice(2) : pk); // Hapus '0x' jika ada
+      .map(pk => pk.startsWith('0x') ? pk.slice(2) : pk);
     if (privateKeys.length === 0) {
       throw new Error('Tidak ada private key yang valid di PK.txt');
     }
@@ -112,20 +112,17 @@ class TokenCLI {
     return { name, symbol, supply: parseFloat(supply) };
   }
 
-  // Fungsi untuk menghasilkan jumlah token acak antara 1 juta dan 100 juta
   getRandomAmount() {
     const min = 5686;
     const max = 17810;
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  // Fungsi untuk memilih alamat acak dari wallet.txt
   getRandomAddress(addresses) {
     const randomIndex = Math.floor(Math.random() * addresses.length);
     return addresses[randomIndex];
   }
 
-  // Fungsi untuk memilih contract address acak dari contract.txt
   getRandomContractAddress(contractAddresses) {
     const randomIndex = Math.floor(Math.random() * contractAddresses.length);
     return contractAddresses[randomIndex];
@@ -144,7 +141,6 @@ class TokenCLI {
     }
   }
 
-  // Fungsi untuk memproses satu akun
   async processAccount(index, privateKey, chain, contractAddresses, walletAddresses) {
     try {
       console.log(`\n🔄 Memulai akun #${index + 1}...`);
@@ -156,8 +152,9 @@ class TokenCLI {
         const amount = this.getRandomAmount();
         const toAddress = this.getRandomAddress(walletAddresses);
         const contractAddress = this.getRandomContractAddress(contractAddresses);
-        console.log(`📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token dari kontrak ${contractAddress} ke ${toAddress}`);
+        console.log(`[${new Date().toISOString()}] 📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token dari kontrak ${contractAddress} ke ${toAddress}`);
         await tokenTransferService.transferToken(contractAddress, toAddress, amount);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Delay 1 detik
       }
       console.log(`✅ Akun #${index + 1} selesai`);
     } catch (error) {
@@ -169,16 +166,11 @@ class TokenCLI {
     try {
       await this.initialize();
       const chain = await this.selectChain();
-
-      // Ambil semua private key dari PK.txt
       const privateKeys = await this.getPrivateKeys();
       console.log(`\n🔑 Ditemukan ${privateKeys.length} private key di PK.txt`);
-
-      // Pilih operasi
       const operation = await this.selectOperation();
 
       if (operation === 1) {
-        // Deploy token baru
         const tokenDetails = await this.getTokenDetails();
         const walletManager = new WalletManager(chain);
         const privateKey = privateKeys[0];
@@ -190,17 +182,15 @@ class TokenCLI {
           tokenDetails.supply
         );
       } else if (operation === 2) {
-        // Transfer token dari daftar kontrak secara paralel
         const contractAddresses = await this.getContractAddresses();
         console.log(`\n📜 Ditemukan ${contractAddresses.length} contract address di contract.txt`);
         const walletAddresses = await this.getWalletAddresses();
         console.log(`\n📍 Ditemukan ${walletAddresses.length} alamat tujuan di wallet.txt`);
 
-        // Jalankan semua akun secara paralel
-        const accountPromises = privateKeys.map((privateKey, index) =>
-          this.processAccount(index, privateKey, chain, contractAddresses, walletAddresses)
-        );
-        await Promise.all(accountPromises);
+        // Proses akun satu per satu, bukan paralel
+        for (const [index, privateKey] of privateKeys.entries()) {
+          await this.processAccount(index, privateKey, chain, contractAddresses, walletAddresses);
+        }
       }
 
       console.log('\n🎉 Operasi selesai!');
