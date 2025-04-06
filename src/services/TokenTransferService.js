@@ -8,34 +8,41 @@ class TokenTransferService {
   }
 
   async transferToken(contractAddress, toAddress, amount) {
-    try {
-      const artifactPath = './artifacts/contracts/Token.sol/Token.json';
-      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const artifactPath = './artifacts/contracts/Token.sol/Token.json';
+        const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
 
-      const contract = new ethers.Contract(
-        contractAddress,
-        artifact.abi,
-        this.walletManager.wallet
-      );
+        const contract = new ethers.Contract(
+          contractAddress,
+          artifact.abi,
+          this.walletManager.wallet
+        );
 
-      const decimals = await contract.decimals();
-      const amountWithDecimals = ethers.parseUnits(amount.toString(), decimals);
+        const decimals = await contract.decimals();
+        const amountWithDecimals = ethers.parseUnits(amount.toString(), decimals);
 
-      const balance = await contract.balanceOf(this.walletManager.wallet.address);
-      if (balance < amountWithDecimals) {
-        throw new Error(`Saldo token tidak mencukupi. Saldo saat ini: ${ethers.formatUnits(balance, decimals)}`);
+        const balance = await contract.balanceOf(this.walletManager.wallet.address);
+        if (balance < amountWithDecimals) {
+          throw new Error(`Saldo token tidak mencukupi. Saldo saat ini: ${ethers.formatUnits(balance, decimals)}`);
+        }
+
+        const tx = await contract.transfer(toAddress, amountWithDecimals);
+        console.log(`📤 Transaksi transfer token terkirim: ${tx.hash}`);
+        console.log(`🔍 Explorer: ${this.walletManager.chain.explorer}/tx/${tx.hash}`);
+
+        const receipt = await tx.wait();
+        console.log(`✅ Transfer token berhasil dikonfirmasi di block ${receipt.blockNumber}`);
+        return receipt;
+      } catch (error) {
+        if (error.error && error.error.code === 429 && attempt < 3) {
+          console.log(`Rate limit exceeded, retrying (${attempt}/3)...`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // Delay meningkat
+        } else {
+          console.error(`Error transfer token: ${error.message}`);
+          throw error;
+        }
       }
-
-      const tx = await contract.transfer(toAddress, amountWithDecimals);
-      console.log(`📤 Transaksi transfer token terkirim: ${tx.hash}`);
-      console.log(`🔍 Explorer: ${this.walletManager.chain.explorer}/tx/${tx.hash}`);
-
-      const receipt = await tx.wait();
-      console.log(`✅ Transfer token berhasil dikonfirmasi di block ${receipt.blockNumber}`);
-      return receipt;
-    } catch (error) {
-      console.error(`Error transfer token: ${error.message}`);
-      throw error;
     }
   }
 
