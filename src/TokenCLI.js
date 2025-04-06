@@ -114,8 +114,8 @@ class TokenCLI {
 
   // Fungsi untuk menghasilkan jumlah token acak antara 1 juta dan 100 juta
   getRandomAmount() {
-    const min = 500000;
-    const max = 1000000;
+    const min = 5686;
+    const max = 17810;
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
