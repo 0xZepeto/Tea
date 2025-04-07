@@ -131,7 +131,7 @@ class TokenCLI {
   async selectOperation() {
     console.log('\n📝 Pilih operasi yang akan dilakukan:');
     console.log('1. Deploy token baru');
-    console.log('2. Transfer token dari daftar kontrak (paralel)');
+    console.log('2. Transfer token dari daftar kontrak');
     const answer = await this.question('\nPilih operasi (1-2): ');
     const selection = parseInt(answer);
     if (selection >= 1 && selection <= 2) {
@@ -142,24 +142,50 @@ class TokenCLI {
   }
 
   async processAccount(index, privateKey, chain, contractAddresses, walletAddresses) {
-    try {
-      console.log(`\n🔄 Memulai akun #${index + 1}...`);
-      const walletManager = new WalletManager(chain);
-      await walletManager.initializeWallet('0x' + privateKey);
-      const tokenTransferService = new TokenTransferService(walletManager);
+    console.log(`\n══════════════════════════════════════════════════════`);
+    console.log(`🔄 Memulai proses untuk Akun #${index + 1}`);
+    console.log(`══════════════════════════════════════════════════════`);
 
-      for (let i = 0; i < 101; i++) {
-        const amount = this.getRandomAmount();
-        const toAddress = this.getRandomAddress(walletAddresses);
-        const contractAddress = this.getRandomContractAddress(contractAddresses);
-        console.log(`[${new Date().toISOString()}] 📤 Transaksi #${i + 1} untuk akun #${index + 1} - Mengirim ${amount} token dari kontrak ${contractAddress} ke ${toAddress}`);
-        await tokenTransferService.transferToken(contractAddress, toAddress, amount);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Delay 1 detik
+    const walletManager = new WalletManager(chain);
+    await walletManager.initializeWallet('0x' + privateKey);
+    const tokenTransferService = new TokenTransferService(walletManager);
+    let successfulTxCount = 0;
+
+    for (let i = 0; i < 101; i++) {
+      const amount = this.getRandomAmount();
+      const toAddress = this.getRandomAddress(walletAddresses);
+      const contractAddress = this.getRandomContractAddress(contractAddresses);
+      let retries = 3;
+
+      while (retries > 0) {
+        try {
+          console.log(`┌──── Transaksi #${i + 1} untuk Akun #${index + 1} ────`);
+          console.log(`│ ⏰ Waktu: ${new Date().toISOString()}`);
+          console.log(`│ 📤 Mengirim: ${amount} token`);
+          console.log(`│ 📜 Kontrak: ${contractAddress}`);
+          console.log(`│ 📍 Tujuan: ${toAddress}`);
+
+          await tokenTransferService.transferToken(contractAddress, toAddress, amount);
+          successfulTxCount++;
+          console.log(`└──── Status: ✅ Berhasil`);
+          break; // Keluar dari loop retry jika berhasil
+        } catch (error) {
+          retries--;
+          console.log(`└──── Status: ❌ Gagal (Percobaan ${4 - retries}/3) - ${error.message}`);
+          if (retries > 0) {
+            console.log(`     ⏳ Menunggu 2 detik sebelum mencoba lagi...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            console.log(`     ⚠️ Gagal setelah 3 percobaan, transaksi dilewati.`);
+          }
+        }
       }
-      console.log(`✅ Akun #${index + 1} selesai`);
-    } catch (error) {
-      console.error(`Error pada akun #${index + 1}: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Delay antar transaksi
     }
+
+    console.log(`\n══════════════════════════════════════════════════════`);
+    console.log(`✅ Akun #${index + 1} selesai - Total transaksi berhasil: ${successfulTxCount}/101`);
+    console.log(`══════════════════════════════════════════════════════`);
   }
 
   async run() {
@@ -187,7 +213,6 @@ class TokenCLI {
         const walletAddresses = await this.getWalletAddresses();
         console.log(`\n📍 Ditemukan ${walletAddresses.length} alamat tujuan di wallet.txt`);
 
-        // Proses akun satu per satu, bukan paralel
         for (const [index, privateKey] of privateKeys.entries()) {
           await this.processAccount(index, privateKey, chain, contractAddresses, walletAddresses);
         }
