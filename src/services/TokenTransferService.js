@@ -7,6 +7,15 @@ class TokenTransferService {
     this.walletManager = walletManager;
   }
 
+  async waitWithTimeout(tx, timeoutMs = 60000) {
+    return Promise.race([
+      tx.wait(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Transaksi timeout setelah 60 detik')), timeoutMs)
+      )
+    ]);
+  }
+
   async transferToken(contractAddress, toAddress, amount) {
     const artifactPath = './artifacts/contracts/Token.sol/Token.json';
     const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
@@ -26,12 +35,15 @@ class TokenTransferService {
     }
 
     const tx = await contract.transfer(toAddress, amountWithDecimals);
-    console.log(`│ 🔗 Tx Hash: ${tx.hash}`);
-    console.log(`│ 🔍 Explorer: ${this.walletManager.chain.explorer}/tx/${tx.hash}`);
+    console.log(`| Tx Hash: ${tx.hash}`);
 
-    const receipt = await tx.wait();
-    console.log(`│ ⛓️ Block: ${receipt.blockNumber}`);
-    return receipt;
+    try {
+      const receipt = await this.waitWithTimeout(tx);
+      console.log(`| Block: ${receipt.blockNumber}`);
+      return receipt;
+    } catch (error) {
+      throw new Error(`Gagal menunggu konfirmasi transaksi: ${error.message}`);
+    }
   }
 
   async transferFromWalletTxt(contractAddress, amount) {
@@ -50,22 +62,22 @@ class TokenTransferService {
         throw new Error('Tidak ada alamat wallet yang valid di wallet.txt');
       }
 
-      console.log(`\n🚀 Memulai transfer token ke ${addresses.length} alamat dari wallet.txt...\n`);
+      console.log(`\n[INFO] Memulai transfer token ke ${addresses.length} alamat dari wallet.txt...\n`);
 
       for (const address of addresses) {
         if (!ethers.isAddress(address)) {
-          console.log(`⚠️ Melewati alamat tidak valid: ${address}`);
+          console.log(`[WARN] Melewati alamat tidak valid: ${address}`);
           continue;
         }
 
-        console.log(`💸 Mentransfer token ke ${address}...`);
+        console.log(`[TRANSFER] Mentransfer token ke ${address}...`);
         await this.transferToken(contractAddress, address, amount);
-        console.log(`✅ Transfer selesai!\n`);
+        console.log(`[SUCCESS] Transfer selesai!\n`);
       }
 
-      console.log('🎉 Semua transfer selesai!');
+      console.log('[DONE] Semua transfer selesai!');
     } catch (error) {
-      console.error(`Error batch transfer: ${error.message}`);
+      console.error(`[ERROR] Batch transfer: ${error.message}`);
       throw error;
     }
   }
@@ -73,15 +85,15 @@ class TokenTransferService {
   async transferToNewWallets(contractAddress, numberOfWallets, amount) {
     try {
       const wallets = [];
-      console.log(`\n🚀 Membuat ${numberOfWallets} wallet baru dan mentransfer token...\n`);
+      console.log(`\n[INFO] Membuat ${numberOfWallets} wallet baru dan mentransfer token...\n`);
 
       for (let i = 0; i < numberOfWallets; i++) {
         const newWallet = ethers.Wallet.createRandom();
         wallets.push(newWallet);
 
-        console.log(`💸 Mentransfer token ke wallet #${i + 1}: ${newWallet.address}`);
+        console.log(`[TRANSFER] Mentransfer token ke wallet #${i + 1}: ${newWallet.address}`);
         await this.transferToken(contractAddress, newWallet.address, amount);
-        console.log(`🔑 Private Key: ${newWallet.privateKey}\n`);
+        console.log(`[KEY] Private Key: ${newWallet.privateKey}\n`);
       }
 
       const walletInfo = wallets.map(wallet => ({
@@ -91,12 +103,12 @@ class TokenTransferService {
 
       const filename = `./data/generated_wallets_${Date.now()}.json`;
       fs.writeFileSync(filename, JSON.stringify(walletInfo, null, 2));
-      console.log(`💾 Informasi wallet baru disimpan di: ${filename}`);
+      console.log(`[SAVE] Informasi wallet baru disimpan di: ${filename}`);
 
-      console.log('🎉 Semua transfer ke wallet baru selesai!');
+      console.log('[DONE] Semua transfer ke wallet baru selesai!');
       return wallets;
     } catch (error) {
-      console.error(`Error transfer ke wallet baru: ${error.message}`);
+      console.error(`[ERROR] Transfer ke wallet baru: ${error.message}`);
       throw error;
     }
   }
