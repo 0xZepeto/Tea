@@ -30,23 +30,23 @@ class TokenCLI {
   async selectChain() {
     try {
       if (chains.length === 1) {
-        console.log(`\n🌐 Menggunakan chain: ${chains[0].name}`);
+        console.log(`\n[CHAIN] Menggunakan chain: ${chains[0].name}`);
         return chains[0];
       }
-      console.log('\n🌐 Chain yang tersedia:');
+      console.log('\n[CHAIN] Chain yang tersedia:');
       chains.forEach((chain, index) => {
         console.log(`${index + 1}. ${chain.name}`);
       });
       const answer = await this.question('\nPilih chain (masukkan nomor): ');
       const selection = parseInt(answer) - 1;
       if (selection >= 0 && selection < chains.length) {
-        console.log(`\n✅ Chain terpilih: ${chains[selection].name}`);
+        console.log(`\n[OK] Chain terpilih: ${chains[selection].name}`);
         return chains[selection];
       } else {
         throw new Error('Pilihan chain tidak valid');
       }
     } catch (error) {
-      console.error('Error pemilihan chain:', error.message);
+      console.error('[ERROR] Pemilihan chain:', error.message);
       process.exit(1);
     }
   }
@@ -129,7 +129,7 @@ class TokenCLI {
   }
 
   async selectOperation() {
-    console.log('\n📝 Pilih operasi yang akan dilakukan:');
+    console.log('\n[OPTION] Pilih operasi yang akan dilakukan:');
     console.log('1. Deploy token baru');
     console.log('2. Transfer token dari daftar kontrak');
     const answer = await this.question('\nPilih operasi (1-2): ');
@@ -142,9 +142,9 @@ class TokenCLI {
   }
 
   async processAccount(index, privateKey, chain, contractAddresses, walletAddresses) {
-    console.log(`\n══════════════════════════════════════════════════════`);
-    console.log(`🔄 Memulai proses untuk Akun #${index + 1}`);
-    console.log(`══════════════════════════════════════════════════════`);
+    console.log(`\n==================================================`);
+    console.log(`[START] Memulai proses untuk Akun #${index + 1}`);
+    console.log(`==================================================`);
 
     const walletManager = new WalletManager(chain);
     await walletManager.initializeWallet('0x' + privateKey);
@@ -159,33 +159,33 @@ class TokenCLI {
 
       while (retries > 0) {
         try {
-          console.log(`┌──── Transaksi #${i + 1} untuk Akun #${index + 1} ────`);
-          console.log(`│ ⏰ Waktu: ${new Date().toISOString()}`);
-          console.log(`│ 📤 Mengirim: ${amount} token`);
-          console.log(`│ 📜 Kontrak: ${contractAddress}`);
-          console.log(`│ 📍 Tujuan: ${toAddress}`);
+          console.log(`+---- Transaksi #${i + 1} untuk Akun #${index + 1} ----`);
+          console.log(`| Time: ${new Date().toISOString()}`);
+          console.log(`| Amount: ${amount} token`);
+          console.log(`| Contract: ${contractAddress}`);
+          console.log(`| To: ${toAddress}`);
 
           await tokenTransferService.transferToken(contractAddress, toAddress, amount);
           successfulTxCount++;
-          console.log(`└──── Status: ✅ Berhasil`);
+          console.log(`+---- Status: [SUCCESS]`);
           break; // Keluar dari loop retry jika berhasil
         } catch (error) {
           retries--;
-          console.log(`└──── Status: ❌ Gagal (Percobaan ${4 - retries}/3) - ${error.message}`);
+          console.log(`+---- Status: [FAILED] (Attempt ${4 - retries}/3) - ${error.message}`);
           if (retries > 0) {
-            console.log(`     ⏳ Menunggu 2 detik sebelum mencoba lagi...`);
+            console.log(`     [RETRY] Waiting 2 seconds before retrying...`);
             await new Promise(resolve => setTimeout(resolve, 2000));
           } else {
-            console.log(`     ⚠️ Gagal setelah 3 percobaan, transaksi dilewati.`);
+            console.log(`     [SKIP] Failed after 3 attempts, moving to next transaction.`);
+            break; // Lanjut ke transaksi berikutnya jika gagal setelah 3 kali
           }
         }
       }
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Delay antar transaksi
     }
 
-    console.log(`\n══════════════════════════════════════════════════════`);
-    console.log(`✅ Akun #${index + 1} selesai - Total transaksi berhasil: ${successfulTxCount}/101`);
-    console.log(`══════════════════════════════════════════════════════`);
+    console.log(`\n==================================================`);
+    console.log(`[FINISH] Akun #${index + 1} selesai - Total transaksi berhasil: ${successfulTxCount}/101`);
+    console.log(`==================================================`);
   }
 
   async run() {
@@ -193,7 +193,7 @@ class TokenCLI {
       await this.initialize();
       const chain = await this.selectChain();
       const privateKeys = await this.getPrivateKeys();
-      console.log(`\n🔑 Ditemukan ${privateKeys.length} private key di PK.txt`);
+      console.log(`\n[INFO] Ditemukan ${privateKeys.length} private key di PK.txt`);
       const operation = await this.selectOperation();
 
       if (operation === 1) {
@@ -209,19 +209,19 @@ class TokenCLI {
         );
       } else if (operation === 2) {
         const contractAddresses = await this.getContractAddresses();
-        console.log(`\n📜 Ditemukan ${contractAddresses.length} contract address di contract.txt`);
+        console.log(`\n[INFO] Ditemukan ${contractAddresses.length} contract address di contract.txt`);
         const walletAddresses = await this.getWalletAddresses();
-        console.log(`\n📍 Ditemukan ${walletAddresses.length} alamat tujuan di wallet.txt`);
+        console.log(`\n[INFO] Ditemukan ${walletAddresses.length} alamat tujuan di wallet.txt`);
 
         for (const [index, privateKey] of privateKeys.entries()) {
           await this.processAccount(index, privateKey, chain, contractAddresses, walletAddresses);
         }
       }
 
-      console.log('\n🎉 Operasi selesai!');
+      console.log('\n[DONE] Operasi selesai!');
       this.rl.close();
     } catch (error) {
-      console.error('Error:', error.message);
+      console.error('[ERROR]:', error.message);
       this.rl.close();
       process.exit(1);
     }
