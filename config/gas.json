@@ -4,7 +4,7 @@
     "gasPrice": "5"
   },
   "transfer": {
-    "gasLimit": "100000",
-    "gasPrice": "5"
+    "gasLimit": "200000",
+    "gasPrice": "10"
   }
 }
